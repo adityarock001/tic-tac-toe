@@ -180,26 +180,35 @@ function handleCellClick(index) {
   playSound(clickSound)
   updateBoard()
 
-  if (checkWinner()) {
-    gameActive = false
-    if (isComputerGame) {
-      if (currentPlayer === "X") {
-        playSound(winSound)
-        alert("You win!")
-      } else {
-        playSound(loseSound)
-        alert("Computer wins!")
-      }
+  const result = checkWinner();
+if (result !== null) {
+  gameActive = false;
+  if (isComputerGame) {
+    if (result === "X") {
+      playSound(winSound);
+      showToast("You win!", "#008000");
+    } else if (result === "O") {
+      playSound(loseSound);
+      showToast("Computer wins!", "#c00404ff");
     } else {
-      playSound(winSound)
-      alert(`Player ${currentPlayer} wins!`)
+      playSound(drawSound);
+      showToast("It's a draw!", "#808080");
     }
-    return
+  } else {
+    if (result === "tie") {
+      playSound(drawSound);
+      showToast("It's a draw!", "#808080");
+    } else {
+      playSound(winSound);
+      showToast(`Player ${result} wins!`, "#000080");
+    }
   }
+  return;
+}
 
   if (gameBoard.every((cell) => cell !== "")) {
     playSound(drawSound)
-    alert("It's a draw!")
+    showToast("It's a draw!", "#808080")
     gameActive = false
     return
   }
@@ -224,42 +233,126 @@ function updateBoard() {
   }
 }
 
-function checkWinner() {
+function checkWinner(board = gameBoard) {
   const winPatterns = [
-    [0, 1, 2],
-    [3, 4, 5],
-    [6, 7, 8],
-    [0, 3, 6],
-    [1, 4, 7],
-    [2, 5, 8],
-    [0, 4, 8],
-    [2, 4, 6],
-  ]
+    [0, 1, 2], [3, 4, 5], [6, 7, 8],
+    [0, 3, 6], [1, 4, 7], [2, 5, 8],
+    [0, 4, 8], [2, 4, 6],
+  ];
 
-  return winPatterns.some((pattern) => {
-    const [a, b, c] = pattern
-    return gameBoard[a] && gameBoard[a] === gameBoard[b] && gameBoard[a] === gameBoard[c]
-  })
+  for (let pattern of winPatterns) {
+    const [a, b, c] = pattern;
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+      return board[a]; // "X" or "O"
+    }
+  }
+
+  if (board.every(cell => cell !== "")) {
+    return "tie";
+  }
+
+  return null;
 }
 
-function computerMove() {
-  const emptyCells = gameBoard.reduce((acc, cell, index) => {
-    if (cell === "") acc.push(index)
-    return acc
-  }, [])
+// function computerMove() {
+//   const emptyCells = gameBoard.reduce((acc, cell, index) => {
+//     if (cell === "") acc.push(index)
+//     return acc
+//   }, [])
 
-  if (emptyCells.length > 0) {
-    const randomIndex = emptyCells[Math.floor(Math.random() * emptyCells.length)]
-    handleCellClick(randomIndex)
+//   if (emptyCells.length > 0) {
+//     const randomIndex = emptyCells[Math.floor(Math.random() * emptyCells.length)]
+//     handleCellClick(randomIndex)
+//   }
+// }
+
+function computerMove() {
+  const bestMove = getBestMove(gameBoard);
+  if (bestMove !== null) {
+    gameBoard[bestMove] = "O";
+    playSound(clickSound);
+    updateBoard();
+
+    const result = checkWinner();
+    if (result !== null) {
+      gameActive = false;
+      if (result === "O") {
+        playSound(loseSound);
+        showToast("Computer wins!", "#c00404ff");
+      } else if (result === "X") {
+        playSound(winSound);
+        showToast("You win!", "#008000");
+      } else {
+        playSound(drawSound);
+        showToast("It's a draw!", "#808080");
+      }
+      return;
+    }
+
+    currentPlayer = "X";
   }
 }
 
+function getBestMove(board) {
+  let bestScore = -Infinity;
+  let move = null;
+
+  for (let i = 0; i < board.length; i++) {
+    if (board[i] === "") {
+      board[i] = "O"; // Assume computer is "O"
+      let score = minimax(board, 0, false);
+      board[i] = "";
+      if (score > bestScore) {
+        bestScore = score;
+        move = i;
+      }
+    }
+  }
+  return move;
+}
+
+function minimax(board, depth, isMaximizing) {
+  const result = checkWinner(board);
+  if (result !== null) {
+    const scores = { X: -10, O: 10, tie: 0 };
+    return scores[result];
+  }
+
+  if (isMaximizing) {
+    let bestScore = -Infinity;
+    for (let i = 0; i < board.length; i++) {
+      if (board[i] === "") {
+        board[i] = "O";
+        let score = minimax(board, depth + 1, false);
+        board[i] = "";
+        bestScore = Math.max(score, bestScore);
+      }
+    }
+    return bestScore;
+  } else {
+    let bestScore = Infinity;
+    for (let i = 0; i < board.length; i++) {
+      if (board[i] === "") {
+        board[i] = "X";
+        let score = minimax(board, depth + 1, true);
+        board[i] = "";
+        bestScore = Math.min(score, bestScore);
+      }
+    }
+    return bestScore;
+  }
+}  
+
 function resetGame() {
-  gameBoard = ["", "", "", "", "", "", "", "", ""]
-  currentPlayer = "X"
-  gameActive = true
-  updateBoard()
-  playSound(resetSound) 
+  gameBoard = ["", "", "", "", "", "", "", "", ""];
+  currentPlayer = "X";
+  gameActive = true;
+  updateBoard();
+  playSound(resetSound);
+
+  if (isComputerGame && currentPlayer === "O") {
+    setTimeout(computerMove, 500);
+  }
 }
 
 playFriendBtn.addEventListener("click", () => {
@@ -276,3 +369,19 @@ resetBtn.addEventListener("click", resetGame)
 
 createBoard()
 resetGame()
+
+
+
+function showToast(message, color) {
+  Toastify({
+    text: message,
+    duration: 3000,
+    gravity: "top",
+    position: "center",
+    style: {
+      background: color,
+      borderRadius: "10px",
+      boxShadow: "0 0 10px rgba(0,0,0,0.5)",
+    }
+  }).showToast();
+}
